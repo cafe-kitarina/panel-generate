@@ -1,0 +1,739 @@
+<head>
+  <!-- ページのメタ情報（文字コードは UTF-8） -->
+  <meta charset="utf-8" />
+  <!-- 端末幅に合わせて 1.0 倍で表示（レスポンシブの基本設定） -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- ブラウザのタブに表示されるタイトル -->
+  <title>Image Overlay Composer</title>
+
+  <style>
+    /* ===============================
+       テーマカラー（CSSカスタムプロパティ）
+       ここを書き換えると全体の配色を一括変更できる
+       =============================== */
+    :root{
+      --bg:#0b1220;         /* 背景の基調色（暗い紺） */
+      --panel:#0f172a;      /* パネル（カード）背景色 */
+      --muted:#94a3b8;      /* 補助テキスト色（薄いグレー） */
+      --text:#e5e7eb;       /* 本文テキスト色（明るいグレー） */
+      --accent:#38bdf8;     /* 強調色（スイッチONなど） */
+      --border:#1f2a44;     /* 枠線色 */
+      --btn:#1e293b;        /* ボタン標準背景色 */
+      --btn-hover:#273447;  /* ボタンのホバー時背景色 */
+      --danger:#ef4444;     /* 危険操作のキーカラー（参考：テキストに直接は未使用） */
+    }
+
+    /* すべての要素のボックス計算を “border-box” に統一
+       → padding/border を含めて幅・高さが計算され分かりやすい */
+    *{box-sizing:border-box}
+
+    /* 100% 高さを使うための前提設定 */
+    html,body{height:100%;}
+
+    /* 画面のベーススタイル */
+    body{
+      margin:0; /* 余白ゼロで全面レイアウト */
+      background:linear-gradient(120deg,#0b1220 0%,#0c1a2e 100%); /* 斜めグラデ背景 */
+      color:var(--text); /* 既定の文字色 */
+      font-family:
+        system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Noto Sans JP",sans-serif; /* 読みやすい汎用フォント */
+    }
+
+    /* アプリの2カラムレイアウト
+       左：コントロール 360px、右：プレビュー（余りすべて）
+       画面全体の高さを使い、カラム間は 16px の隙間 */
+    .app{
+      display:grid;
+      grid-template-columns: 360px 1fr;
+      gap:16px;
+      height:100%;
+      padding:16px; /* 画面端との余白 */
+    }
+
+    /* パネル（カード）見た目の共通スタイル */
+    .panel{
+      background:var(--panel);
+      border:1px solid var(--border);
+      border-radius:16px;      /* 角を丸く */
+      padding:14px;
+      box-shadow:0 10px 30px rgba(0,0,0,.25); /* ふわっと浮かせる影 */
+    }
+
+    /* パネル内の見出し（h2）の体裁 */
+    .panel h2{
+      margin:0 0 10px 0;
+      font-size:16px;
+      letter-spacing:.2px; /* ほんの少し字間を空ける */
+    }
+
+    /* 1行ぶんの入力行をグリッドで構成
+       左に主ブロック(1fr)、右に補助（ボタン等、幅は中身依存） */
+    .row{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:8px;
+      align-items:center; /* 垂直方向のセンタリング */
+      margin:8px 0;
+    }
+
+    /* ラベルは少し小さめ＆サブカラー */
+    .row label{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* テキスト/数値/カラー/セレクトの共通見た目（フル幅・暗色テーマ） */
+    .row input[type="text"],
+    .row input[type="number"],
+    .row input[type="color"],
+    .row select{
+      width:100%;
+      background:#0b1220;
+      color:var(--text);
+      border:1px solid var(--border);
+      border-radius:10px;
+      padding:8px;
+    }
+
+    /* スライダーも行幅いっぱいに */
+    .row input[type="range"]{width:100%}
+
+    /* ボタンの共通スタイル */
+    .btn{
+      background:var(--btn);
+      color:var(--text);
+      border:1px solid var(--border);
+      padding:8px 10px;
+      border-radius:10px;
+      cursor:pointer; /* マウスカーソルを“手”に */
+    }
+    .btn:hover{background:var(--btn-hover)} /* ホバー時の色 */
+
+    /* 横に並べたい小要素の束（ボタンや数値入力の並びなど） */
+    .stack{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap; /* 狭い時は折り返す */
+    }
+
+    /* キャンバスを囲う枠：中央寄せ＆角丸＆破線枠 */
+    .canvas-wrap{
+      position:relative;
+      background:#a1a1a1;
+      border:1px dashed #233456;
+      border-radius:16px;
+      height:100%;
+      display:flex;
+      align-items:center;    /* 縦方向に中央寄せ */
+      justify-content:center;/* 横方向に中央寄せ */
+      overflow:hidden;       /* はみ出しは隠す（ズーム時のはみ出し対策） */
+    }
+
+    /* <canvas> 自体の最大表示サイズ制限と背景色 */
+    canvas{
+      max-width:100%;   /* 親幅を超えない */
+      max-height:100%;  /* 親高を超えない */
+      background:#0a0f1d;
+      border-radius:12px;
+    }
+
+    /* 補助説明テキスト */
+    .hint{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* ツールバー（ボタン群）のレイアウト */
+    .toolbar{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      margin:8px 0;
+    }
+
+    /* セグメント化ボタン（トグルのグループ） */
+    .seg{
+      display:inline-flex;
+      border:1px solid var(--border);
+      border-radius:12px;
+      overflow:hidden; /* 角丸に収まるようにはみ出しカット */
+    }
+    .seg button{
+      background:var(--btn);
+      border:none;
+      padding:8px 10px;
+      color:var(--text);
+      cursor:pointer;
+    }
+    /* aria-pressed="true"（ON 状態）の見た目をアクセントカラーに */
+    .seg button[aria-pressed="true"]{
+      background:var(--accent);
+      color:#0b1220; /* アクセントに合う濃色文字 */
+    }
+
+    /* 2列グリッド（↑↓←→などの小ボタン配置に使用） */
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:8px;
+    }
+
+    /* 小さな補助文言のスタイル */
+    .small{
+      font-size:12px;
+      color:var(--muted);
+    }
+
+    /* ファイル入力を“ドロップ領域風”に */
+    input[type="file"]{
+      border:1px dashed var(--border);
+      padding:10px;
+      border-radius:10px;
+      background:#0b1220;
+    }
+
+    /* パネル下部の説明（ヒント） */
+    .footer{
+      font-size:12px;
+      color:var(--muted);
+      padding-top:6px; /* 上に少し余白 */
+    }
+
+    /* 小さな丸角バッジ（座標表示など） */
+    .badge{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;        /* 完全な pill 形状 */
+      border:1px solid var(--border);
+      font-size:11px;
+      color:var(--muted);
+    }
+
+    @font-face{
+    font-family:'Rounded Mgen+ 1c';
+    src:url('./fonts/rounded-mgenplus-1c-black.ttf') format('truetype');
+    font-weight:400; font-style:normal; font-display:swap;
+    } 
+    
+  </style>
+</head>
+
+<div class="app"> <!-- アプリ全体の2カラムグリッド（左：操作パネル / 右：プレビュー） -->
+
+  <!-- 左カラム：コントロール群 -->
+  <aside class="panel" aria-label="controls panel"> <!-- 視覚的にはカード、スクリーンリーダーには「コントロールパネル」と伝える -->
+    <h2>設定 / Controls</h2>
+
+    <!-- 出力サイズ（キャンバス論理サイズ）設定行 -->
+    <div class="row"> <!-- 左にラベル、右に入力UIの2列グリッド -->
+      <label for="canvasW">出力サイズ (px)</label>
+      <div class="stack"><span class="badge">1141 × 1077 px</span></div>
+    </div>
+
+    <!-- 背景画像の読み込み -->
+    <div class="row">
+      <label>画像（背景）</label>
+      <!-- 画像だけ選べる accept="image/*"。JSの #imgInput の change で読み込む -->
+      <input id="imgInput" type="file" accept="image/*" />
+    </div>
+
+    <!-- 画像/テキストの操作切り替え＋便利操作 -->
+    <div class="toolbar"> <!-- 小ボタンを横並びにするバー -->
+      <!-- セグメント化されたトグルボタン（操作対象の切替） -->
+      <div class="seg" role="group" aria-label="move mode"> <!-- role=group で一つのグループとして伝える -->
+        <!-- 画像モード：aria-pressed=true（ON状態）。ドラッグ/ズーム対象が画像になる -->
+        <button id="modeImage" aria-pressed="true" title="画像をドラッグ">画像</button>
+      </div>
+      <!-- 背景画像をキャンバス内に収まるよう自動フィット（JSの fitImage） -->
+      <button id="fitBtn" class="btn" title="画像をカンバスにフィット">フィット</button>
+      <!-- 画像位置・倍率、テキスト位置を初期化（JSの reset ハンドラ） -->
+      <button id="resetBtn" class="btn" title="位置と倍率をリセット">リセット</button>
+    </div>
+
+    <!-- 背景画像の拡大縮小スライダー -->
+    <div class="row">
+      <label for="scale">拡大縮小</label>
+      <!-- 0.1〜4倍、0.01刻み。JSで state.scale にバインド -->
+      <input id="scale" type="range" min="0.1" max="4" step="0.01" value="1" />
+    </div>
+
+    <!-- 微調整（1px移動）ボタン群。矢印キーと同じ動き -->
+    <div class="grid"> <!-- 2列グリッドで配置 -->
+      <button class="btn" id="nudgeLeft"  title="画像/テキストを左に微調整">←</button>
+      <button class="btn" id="nudgeRight" title="右に微調整">→</button>
+      <button class="btn" id="nudgeUp"    title="上に微調整">↑</button>
+      <button class="btn" id="nudgeDown"  title="下に微調整">↓</button>
+    </div>
+
+      <!-- テキスト + 敬称プルダウン -->
+      <div class="row">
+        <label for="baseText">テキスト（敬称は自動付与）</label>
+        <input id="baseText" type="text" placeholder="ここに文字を入力" value="サンプル" />
+      </div>
+
+      <div class="row">
+        <label for="suffixSelect">敬称</label>
+        <select id="suffixSelect">
+          <option value="ママ" selected>ママ</option>
+          <option value="パパ">パパ</option>
+          <option value="パパ/ママ">パパ/ママ</option>
+        </select>
+      </div>
+
+
+    <!-- VRChatID -->
+    <div class="row">
+      <label for="id_text">VRChatID</label>
+      <input id="id_text" type="text" placeholder="ここに文字を入力" value="sample" />
+    </div>
+
+
+    <!-- ガイド線の表示トグル＋現在のマウス座標表示 -->
+    <div class="row">
+      <label>ガイド</label>
+      <div class="stack">
+        <!-- ON/OFF ボタン。JSで state.showGrid を切り替える -->
+        <button class="btn" id="toggleGrid">ガイド線</button>
+        <!-- 現在座標の小バッジ。pointermove で更新される -->
+        <span class="badge" id="coords">x0 y0</span>
+      </div>
+    </div>
+
+    <hr style="border-color:#13203a; margin:12px 0">
+
+    <!-- 出力 -->
+    <div class="stack">
+      <!-- キャンバスの画像を PNG でダウンロード（toDataURL） -->
+      <button id="downloadPNG" class="btn">PNGで保存</button>
+    </div>
+
+    <!-- 操作のヒント（ドラッグ・ズーム・キーボード操作など） -->
+    <div class="footer">
+      ヒント: キャンバス上をドラッグで <strong>移動</strong> / ホイールで <strong>ズーム</strong>（画像モード時）。<br/>
+      方向キーで微調整。モバイルはピンチで拡大縮小。
+      <br><br>
+      本システムでは表示フォントに「Mgen+」(http://jikasei.me/font/mgenplus/) を使用しています。
+      Licensed under SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+      © 2015 自家製フォント工房, © 2014, 2015 Adobe Systems Incorporated, © 2015 M+
+      FONTS PROJECT
+    </div>
+  </aside>
+
+  <!-- 右カラム：プレビュー領域 -->
+  <main class="panel"> <!-- 見た目は左と同じカード -->
+    <h2>プレビュー / Canvas</h2>
+
+    <!-- キャンバスを囲むラッパ。ここが D&D のドロップターゲット -->
+    <div class="canvas-wrap" id="dropZone" aria-label="canvas drop zone">
+      <!-- 実体のキャンバス。width/height は初期論理サイズ（JS側で高DPI対応の実ピクセルに変更） -->
+      <canvas id="c" width="1141" height="1077" aria-label="composition canvas"></canvas>
+    </div>
+
+    <!-- ドロップ操作の説明（背景/フレームとも可。複数落とした場合は直近の操作対象に入る仕様） -->
+    <div class="hint">ここに画像をドラッグ＆ドロップしてもOK（背景/フレームどちらにも対応、2枚以上の場合は直近操作対象に）。</div>
+  </main>
+</div>
+
+<script>
+  // ================================
+  // 状態をまとめて持つオブジェクト
+  // ================================
+  const state = {
+    // キャンバスの論理サイズ（描画解像度）
+    cw:1141, ch:1077,
+    // ガイド線の表示フラグ
+    showGrid:false,
+
+    // ---- 背景画像（ユーザーが入れる写真など） ----
+    img:null,          // Image オブジェクト（読み込み後に入る）
+    imgTex:null,       // 予備（未使用）※将来の拡張用
+    scale:1,           // 画像の拡大率
+    x:0, y:0,          // 画像の左上表示位置（canvas 座標）
+
+    // ---- フレーム画像（上に重ねる PNG など）----
+    frame:null,        // Image オブジェクト（読み込み後に入る）
+    frameTex:null,     // 予備（未使用）※将来の拡張用
+    frameScale:1,      // フレームの拡大率
+    frameX:0, frameY:0,// ※描画時に中央合わせの結果を一応保存
+
+    // ---- テキスト（上に載せる文字）----
+    baseText:"サンプル",
+    suffix:"ママ",
+    font:"Rounded Mgen+ 1c, Noto Sans JP, sans-serif",
+    fontSize:127,
+    color:'#ffffff',         // 文字色
+    strokeColor:'#ffffff',   // 縁取り色
+    strokeWidth:2,           // 縁取り太さ（0なら縁なし）
+    textAlign:'center',      // left / center / right
+    textX:540, textY:100,    // テキストの描画位置（基準は textBaseline='top'）
+
+    // ---- VRCID ----
+    id_text:"sample",
+    id_font:"Rounded Mgen+ 1c, Noto Sans JP, sans-serif",
+    id_fontSize:70,
+    id_color:'#000000',         // 文字色
+    id_strokeColor:'#ffffff',   // 縁取り色
+    id_strokeWidth:12,           // 縁取り太さ（0なら縁なし）
+    id_textAlign:'right',      // left / center / right
+    id_textX:540, id_textY:200,    // テキストの描画位置（基準は textBaseline='top'）
+
+    // マウス・キー操作の対象（画像を動かすか、文字を動かすか）
+    mode:'image', // 'image' or 'text'
+    loadedFonts:new Set()
+  };
+
+  // 便利関数：id から要素取得
+  const el = (id)=>document.getElementById(id);
+  // キャンバスと 2D コンテキスト取得
+  const c = el('c');
+  const ctx = c.getContext('2d');
+  // 物理ピクセル密度（Retina など高DPI対応）
+  const DPR = window.devicePixelRatio || 1;
+
+  // --------------------------------
+  // キャンバスの実サイズを固定する
+  // --------------------------------
+  function resizeCanvasFixed(){
+    const w = 1141, h = 1077;
+    c.width = Math.round(w * DPR);
+    c.height = Math.round(h * DPR);
+    c.style.width = w + 'px';
+    c.style.height = h + 'px';
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    draw();
+  }
+
+  // --------------------------------
+  // File オブジェクトから画像を読み込む
+  // --------------------------------
+  function loadImage(file){
+    return new Promise((resolve,reject)=>{
+      // 選択ファイルを一時URLにして <img> へ
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = ()=>{
+        URL.revokeObjectURL(url); // 使い終わったら解放
+        resolve(img);
+      };
+      img.onerror = reject;
+      img.src = url;
+    });
+  }
+
+  // --------------------------------
+  // 背景画像を「キャンバス内に収まる最大サイズ」でフィット
+  // --------------------------------
+  function fitImage(){
+    if(!state.img) return;
+    const iw = state.img.width, ih = state.img.height;
+
+    // キャンバス／画像の比から最小倍率を採用（はみ出さない最大表示）
+    const s = Math.min(state.cw/iw, state.ch/ih);
+    state.scale = s;
+
+    // 画像を中央に配置するための左上座標を算出
+    state.x = (state.cw - iw*s)/2;
+    state.y = (state.ch - ih*s)/2;
+
+    // UI のスライダーにも反映
+    el('scale').value = state.scale.toFixed(2);
+
+    draw();
+  }
+
+  // --------------------------------
+  // ガイドのグリッドを描画（任意表示）
+  // --------------------------------
+  function drawGrid(){
+    const step = 60;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(100,130,180,.25)'; // 半透明ライン
+    ctx.lineWidth = 1;
+
+    // 縦線
+    for(let x=0; x<=state.cw; x+=step){
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,state.ch); ctx.stroke();
+    }
+    // 横線
+    for(let y=0; y<=state.ch; y+=step){
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(state.cw,y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  // --------------------------------
+  // フレーム
+  // --------------------------------
+  function drawBorder15px(){
+    const t = 8; ctx.save(); ctx.fillStyle = '#000';
+    // 四辺の枠
+    ctx.fillRect(0,0,state.cw,t);
+    ctx.fillRect(0,state.ch - t,state.cw,t);
+    ctx.fillRect(0,0,t,state.ch);
+    ctx.fillRect(state.cw - t,0,t,state.ch);
+    // 下200pxの黒帯
+    ctx.fillRect(0, state.ch - 168, state.cw, 168);
+    ctx.restore();
+  }
+
+  // --------------------------------
+  // 画面全体の再描画（描画の順番が重要）
+  // --------------------------------
+  function draw(){
+    ctx.save();
+
+    // いったん全面クリア
+    ctx.clearRect(0,0,state.cw,state.ch);
+
+    // 1) 背景色で塗りつぶし（何も無い所はこの色）
+    ctx.fillStyle = '#999999';
+    ctx.fillRect(0,0,state.cw,state.ch);
+
+    // 2) 背景画像（拡大縮小と位置を反映して描く）
+    if(state.img){
+      const iw = state.img.width, ih = state.img.height;
+      ctx.drawImage(state.img, state.x, state.y, iw*state.scale, ih*state.scale);
+    }
+
+    // 3) テキスト（縁取り→塗りの順で描くと見やすい）
+    // 下200px黒帯を描画後にテキストを中央に
+    // 下200px黒帯を描画後にテキストを中央に
+    drawBorder15px();
+
+    const outText = (state.baseText || "") + (state.suffix || "");
+    if(outText && state.fontSize>0){
+      ctx.font = `${state.fontSize}px ${quoteFontList(state.font)}`;
+      ctx.textBaseline = 'middle';
+      ctx.textAlign = 'center';
+      const centerX = state.cw/2;
+      const textY = state.ch - 84; // 下200px帯の中央付近
+      if(state.strokeWidth>0){
+        ctx.lineWidth = state.strokeWidth; ctx.strokeStyle = state.strokeColor; ctx.strokeText(outText, centerX, textY);
+      }
+      ctx.fillStyle = state.color; ctx.fillText(outText, centerX, textY);
+    }
+
+    const idOut = (state.id_text || "").trim();
+    if (idOut && state.id_fontSize > 0) {
+    ctx.font = `${state.id_fontSize}px ${quoteFontList(state.id_font)}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = state.id_textAlign; // ←中央/左/右を反映
+    const x =1110;
+    const y = state.ch - 218;
+    if (state.id_strokeWidth > 0) {
+        ctx.lineWidth = state.id_strokeWidth;
+        ctx.strokeStyle = state.id_strokeColor;
+        ctx.strokeText(idOut, x, y);
+    }
+    ctx.fillStyle = state.id_color;
+    ctx.fillText(idOut, x, y);
+    }
+
+    if(state.showGrid) drawGrid();
+    ctx.restore();
+  }
+
+  // ================================
+  // UI（入力系）との接続
+  // ================================
+
+  // 背景画像のファイル選択
+  el('imgInput').addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const img = await loadImage(f);
+    if (img.width < 1141 || img.height < 1077) {
+      alert("画像の解像度が小さすぎます (最低1141x1077が必要です)。");
+      return;
+    }
+    state.img = img;
+    fitImage();
+  });
+
+  // スライダー・入力の値を state に反映 → 再描画
+  el('scale').oninput       = (e)=>{ state.scale       = parseFloat(e.target.value); draw(); };
+  el('baseText').oninput = (e)=>{ state.baseText = e.target.value; draw(); };
+  el('suffixSelect').onchange = (e)=>{ state.suffix = e.target.value; draw(); };
+  el('id_text').oninput       = (e)=>{ state.id_text       = e.target.value;                 draw(); };
+
+  // 対象切り替え（画像を動かす / テキストを動かす）
+  function setMode(m){
+    state.mode = m;
+    // 押されている側に aria-pressed=true を付け、視覚的にも切り替える
+    el('modeImage').setAttribute('aria-pressed', m==='image');
+  }
+  el('modeImage').onclick = ()=> setMode('image');
+
+  // 画像をキャンバスに収める / 位置と倍率をリセット
+  el('fitBtn').onclick = fitImage;
+  el('resetBtn').onclick = ()=>{
+    state.scale=1; state.x=0; state.y=0;           // 背景画像の位置と倍率をリセット
+    state.textX=state.cw/2; state.textY=100;       // テキストは上中央あたりに戻す
+    el('scale').value='1';                          // UI も同期
+    draw();
+  };
+
+  // ガイド線の ON/OFF
+  el('toggleGrid').onclick = ()=>{
+    state.showGrid = !state.showGrid;
+    draw();
+  };
+
+  // --------------------------------
+  // 微調整ボタン（1px 移動）
+  // --------------------------------
+  function nudge(dx,dy){
+    if(state.mode==='image'){      // 画像モード：画像を動かす
+      state.x += dx; state.y += dy;
+    }else{                         // テキストモード：文字を動かす
+      state.textX += dx; state.textY += dy;
+    }
+    draw();
+  }
+  el('nudgeLeft').onclick  = ()=>nudge(-1,0);
+  el('nudgeRight').onclick = ()=>nudge( 1,0);
+  el('nudgeUp').onclick    = ()=>nudge(0,-1);
+  el('nudgeDown').onclick  = ()=>nudge(0, 1);
+
+  // --------------------------------
+  // キーボード矢印でも微調整（Shift で10px）
+  // --------------------------------
+  window.addEventListener('keydown', (e)=>{
+    if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)){
+      e.preventDefault();             // ページスクロールなどのデフォルト動作を抑止
+      const d = e.shiftKey ? 10 : 1;  // Shift 押下で移動量を増やす
+      if(e.key==='ArrowLeft')  nudge(-d,0);
+      if(e.key==='ArrowRight') nudge( d,0);
+      if(e.key==='ArrowUp')    nudge(0,-d);
+      if(e.key==='ArrowDown')  nudge(0, d);
+    }
+  });
+
+  // --------------------------------
+  // キャンバス上でのドラッグ移動＆ホイールズーム
+  // --------------------------------
+  let dragging=false, lastX=0, lastY=0;
+
+  // ドラッグ開始：ポインタをキャプチャして座標の基準を記録
+  c.addEventListener('pointerdown', (e)=>{
+    dragging=true; lastX=e.offsetX; lastY=e.offsetY;
+    c.setPointerCapture(e.pointerId);
+  });
+
+  // ドラッグ中：前回との差分だけ対象（画像 or 文字）を動かす
+  c.addEventListener('pointermove', (e)=>{
+    const x=e.offsetX, y=e.offsetY;
+    // ついでに右上の座標表示も更新
+    el('coords').textContent = `x${Math.round(x)} y${Math.round(y)}`;
+
+    if(!dragging) return;
+    const dx=x-lastX, dy=y-lastY;
+    lastX=x; lastY=y;
+
+    if(state.mode==='image'){ state.x+=dx; state.y+=dy; }
+    else{                     state.textX+=dx; state.textY+=dy; }
+
+    draw();
+  });
+
+  // ドラッグ終了
+  c.addEventListener('pointerup', (e)=>{
+    dragging=false;
+    c.releasePointerCapture(e.pointerId);
+  });
+
+  // ホイールでズーム（画像モード時のみ）
+  c.addEventListener('wheel', (e)=>{
+    if(state.mode!=='image') return; // テキストモードではズーム無効
+    e.preventDefault();
+
+    // スクロール方向で倍率を少しずつ変更
+    const zoomFactor = 1 + (e.deltaY>0 ? -0.05 : 0.05);
+    const prevScale  = state.scale;
+    const newScale   = Math.min(4, Math.max(0.1, prevScale * zoomFactor)); // 0.1〜4 の範囲に制限
+
+    // ---- ズームの“中心”をマウス位置に寄せる工夫 ----
+    // 1) クライアント座標→キャンバス内座標
+    const rect = c.getBoundingClientRect();
+    const cx = (e.clientX - rect.left);
+    const cy = (e.clientY - rect.top);
+
+    // 2) 現在の画像左上から見たマウス点のオフセットを取得
+    const ox = cx - state.x;
+    const oy = cy - state.y;
+
+    // 3) 倍率比から、ズーム後も同じ“見かけの点”がマウス下に来るように x,y を補正
+    const ratio = newScale/prevScale;
+    state.x = cx - ox*ratio;
+    state.y = cy - oy*ratio;
+
+    state.scale = newScale;
+    el('scale').value = state.scale.toFixed(2); // UI 同期
+    draw();
+  }, {passive:false}); // passive:false にして preventDefault を有効化
+
+  // --------------------------------
+  // ドラッグ＆ドロップで画像を読み込む
+  // --------------------------------
+  const dropZone = document.getElementById('dropZone');
+
+  // ブラウザ既定の挙動（新規タブで画像を開く等）を抑止
+  ;['dragenter','dragover','dragleave','drop'].forEach(evt=>{
+    dropZone.addEventListener(evt, (e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+    });
+  });
+
+  // ファイルが落とされたら、モードに応じて背景 or フレームに読み込む
+  dropZone.addEventListener('drop', async (e)=>{
+    const files = Array.from(e.dataTransfer.files || []);
+    for(const f of files){
+      if(!f.type.startsWith('image/')) continue;
+      if(state.mode==='image' || !state.img){
+        // 画像モード、またはまだ背景が無いときは背景に
+        state.img = await loadImage(f);
+        fitImage();
+      }else{
+        // それ以外はフレームとして扱う
+        state.frame = await loadImage(f);
+        draw();
+      }
+    }
+  });
+
+
+    // "Rounded Mgen+ 1c, Noto Sans JP, sans-serif" → "\"Rounded Mgen+ 1c\", \"Noto Sans JP\", sans-serif"
+    function quoteFontList(list){
+    return list.split(',').map(s=>{
+        const name = s.trim();
+        // CSS の汎用ファミリはそのまま
+        if (/^(serif|sans-serif|monospace|cursive|fantasy|system-ui|ui-.*)$/i.test(name)) return name;
+        // 空白や記号を含む名前はクォート
+        if (/[^a-z0-9-]/i.test(name)) return `"${name}"`;
+        return name;
+    }).join(', ');
+    }
+
+  // --------------------------------
+  // ダウンロード（PNG/JPG）※ここでは PNG ボタンのみ使用
+  // --------------------------------
+  function download(type){
+    const mime    = type==='jpg' ? 'image/jpeg' : 'image/png';
+    const quality = type==='jpg' ? 0.92 : 1.0; // JPG の圧縮率
+    const url = c.toDataURL(mime, quality);    // キャンバスをデータURL化
+
+    // 擬似リンクを作って自動クリック→保存
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `composition.${type}`;
+    a.click();
+  }
+  el('downloadPNG').onclick = ()=>download('png');
+
+  // --------------------------------
+  // 初期化：キャンバスを作って一度描く
+  // --------------------------------
+  draw();
+  document.fonts.ready.then(draw);
+</script>
