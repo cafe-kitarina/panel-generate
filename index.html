@@ -719,15 +719,28 @@
   // ダウンロード（PNG/JPG）※ここでは PNG ボタンのみ使用
   // --------------------------------
   function download(type){
-    const mime    = type==='jpg' ? 'image/jpeg' : 'image/png';
-    const quality = type==='jpg' ? 0.92 : 1.0; // JPG の圧縮率
-    const url = c.toDataURL(mime, quality);    // キャンバスをデータURL化
-
+    // グリッド線を一時的にOFF
+    const prevGrid = state.showGrid;
+    if (prevGrid) {
+      state.showGrid = false;
+      draw(); // グリッドを非表示にして再描画
+    }
+  
+    const mime = type === 'jpg' ? 'image/jpeg' : 'image/png';
+    const quality = type === 'jpg' ? 0.92 : 1.0;
+    const url = c.toDataURL(mime, quality);
+  
     // 擬似リンクを作って自動クリック→保存
     const a = document.createElement('a');
     a.href = url;
     a.download = `composition.${type}`;
     a.click();
+  
+    // 元のグリッド設定に戻す
+    if (prevGrid) {
+      state.showGrid = true;
+      draw(); // グリッドを再表示
+    }
   }
   el('downloadPNG').onclick = ()=>download('png');
 
@@ -736,4 +749,5 @@
   // --------------------------------
   draw();
   document.fonts.ready.then(draw);
+
 </script>
