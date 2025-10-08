@@ -312,11 +312,6 @@
     <div class="footer">
       ヒント: キャンバス上をドラッグで <strong>移動</strong> / ホイールで <strong>ズーム</strong>（画像モード時）。<br/>
       方向キーで微調整。モバイルはピンチで拡大縮小。
-      <br><br>
-      本システムでは表示フォントに「Mgen+」(http://jikasei.me/font/mgenplus/) を使用しています。
-      Licensed under SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
-      © 2015 自家製フォント工房, © 2014, 2015 Adobe Systems Incorporated, © 2015 M+
-      FONTS PROJECT
     </div>
   </aside>
 
@@ -501,34 +496,33 @@
     // 下200px黒帯を描画後にテキストを中央に
     drawBorder15px();
 
-    const outText = (state.baseText || "") + (state.suffix || "");
-    if(outText && state.fontSize>0){
-      ctx.font = `${state.fontSize}px ${quoteFontList(state.font)}`;
-      ctx.textBaseline = 'middle';
-      ctx.textAlign = 'center';
-      const centerX = state.cw/2;
-      const textY = state.ch - 84; // 下200px帯の中央付近
-      if(state.strokeWidth>0){
-        ctx.lineWidth = state.strokeWidth; ctx.strokeStyle = state.strokeColor; ctx.strokeText(outText, centerX, textY);
-      }
-      ctx.fillStyle = state.color; ctx.fillText(outText, centerX, textY);
-    }
+const outText = (state.baseText || "") + (state.suffix || "");
+if (outText && state.fontSize > 0){
+  const family = quoteFontList(state.font);
 
-    const idOut = (state.id_text || "").trim();
-    if (idOut && state.id_fontSize > 0) {
-    ctx.font = `${state.id_fontSize}px ${quoteFontList(state.id_font)}`;
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = state.id_textAlign; // ←中央/左/右を反映
-    const x =1110;
-    const y = state.ch - 218;
-    if (state.id_strokeWidth > 0) {
-        ctx.lineWidth = state.id_strokeWidth;
-        ctx.strokeStyle = state.id_strokeColor;
-        ctx.strokeText(idOut, x, y);
-    }
-    ctx.fillStyle = state.id_color;
-    ctx.fillText(idOut, x, y);
-    }
+  // 黒帯の左右に余白を取りつつ、縁取りぶんも考慮
+  const sidePadding = 10; // 好みで調整
+  const strokeExtra = state.strokeWidth > 0 ? state.strokeWidth * 2 : 0;
+  const nameMaxWidth = state.cw - sidePadding * 2 - strokeExtra;
+
+  // ※ここで「収まる最大フォントサイズ（ただしデフォルトより大きくしない）」を算出
+  const fitted = fitFontSizeToWidth(outText, family, state.fontSize, nameMaxWidth, 8);
+
+  ctx.font = `${fitted}px ${family}`;
+  ctx.textBaseline = 'middle';
+  ctx.textAlign = 'center';
+
+  const centerX = state.cw / 2;
+  const textY = state.ch - 84; // 黒帯中央あたり
+
+  if (state.strokeWidth > 0){
+    ctx.lineWidth = state.strokeWidth;
+    ctx.strokeStyle = state.strokeColor;
+    ctx.strokeText(outText, centerX, textY);
+  }
+  ctx.fillStyle = state.color;
+  ctx.fillText(outText, centerX, textY);
+}
 
     if(state.showGrid) drawGrid();
     ctx.restore();
@@ -715,6 +709,32 @@
     }).join(', ');
     }
 
+
+    // 文字列が maxWidth を超えるなら defaultPx を下げて収める（上には拡大しない）
+    function fitFontSizeToWidth(text, fontFamily, defaultPx, maxWidth, minPx = 8){
+      // まずデフォルトで収まるか確認
+      ctx.save();
+      ctx.font = `${defaultPx}px ${fontFamily}`;
+      if (ctx.measureText(text).width <= maxWidth){
+        ctx.restore();
+        return defaultPx; // 収まるならそのまま（=拡大はしない）
+      }
+
+      // 収まらない場合だけ二分探索で小さくする
+      let lo = minPx, hi = defaultPx; // (lo, hi] の範囲で最適化
+      while (lo < hi){
+        const mid = Math.floor((lo + hi) / 2);
+        ctx.font = `${mid}px ${fontFamily}`;
+        if (ctx.measureText(text).width <= maxWidth){
+          lo = mid + 1;   // まだ入る → もう少し大きく試す
+        }else{
+          hi = mid;       // 入らない → 小さくする
+        }
+      }
+      ctx.restore();
+      return Math.max(minPx, lo - 1);
+    }
+
   // --------------------------------
   // ダウンロード（PNG/JPG）※ここでは PNG ボタンのみ使用
   // --------------------------------
@@ -725,23 +745,24 @@
       state.showGrid = false;
       draw(); // グリッドを非表示にして再描画
     }
-  
+
     const mime = type === 'jpg' ? 'image/jpeg' : 'image/png';
-    const quality = type === 'jpg' ? 0.92 : 1.0;
-    const url = c.toDataURL(mime, quality);
-  
+    const quality = type === 'jpg' ? 0.92 : 1.0;// JPG の圧縮率
+    const url = c.toDataURL(mime, quality);    // キャンバスをデータURL化
+
     // 擬似リンクを作って自動クリック→保存
     const a = document.createElement('a');
     a.href = url;
     a.download = `composition.${type}`;
     a.click();
-  
+
     // 元のグリッド設定に戻す
     if (prevGrid) {
       state.showGrid = true;
       draw(); // グリッドを再表示
     }
   }
+
   el('downloadPNG').onclick = ()=>download('png');
 
   // --------------------------------
@@ -749,5 +770,4 @@
   // --------------------------------
   draw();
   document.fonts.ready.then(draw);
-
 </script>
