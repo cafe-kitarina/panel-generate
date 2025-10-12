@@ -651,6 +651,21 @@ if (outText && state.fontSize > 0){
   ctx.fillStyle = state.color;
   ctx.fillText(outText, centerX, textY);
 }
+    const idOut = (state.id_text || "").trim();
+    if (idOut && state.id_fontSize > 0) {
+    ctx.font = `${state.id_fontSize}px ${quoteFontList(state.id_font)}`;
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = state.id_textAlign; // ←中央/左/右を反映
+    const x =1110;
+    const y = state.ch - 218;
+    if (state.id_strokeWidth > 0) {
+        ctx.lineWidth = state.id_strokeWidth;
+        ctx.strokeStyle = state.id_strokeColor;
+        ctx.strokeText(idOut, x, y);
+    }
+    ctx.fillStyle = state.id_color;
+    ctx.fillText(idOut, x, y);
+    }
 
     if(state.showGrid) drawGrid();
     ctx.restore();
