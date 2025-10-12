@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- ブラウザのタブに表示されるタイトル -->
-  <title>Image Overlay Composer</title>
+  <title>パネルジェネレーター</title>
 
   <style>
     /* ===============================
@@ -13,6 +13,7 @@
        ここを書き換えると全体の配色を一括変更できる
        =============================== */
     :root{
+      --preview-scale: .95;
       --bg:#0b1220;         /* 背景の基調色（暗い紺） */
       --panel:#0f172a;      /* パネル（カード）背景色 */
       --muted:#94a3b8;      /* 補助テキスト色（薄いグレー） */
@@ -117,13 +118,24 @@
       flex-wrap:wrap; /* 狭い時は折り返す */
     }
 
+    /* 右側のプレビュー用パネルを縦並びのFlexに */
+    main.panel{
+      display: flex;
+      flex-direction: column;
+      min-height: 0;     /* Grid子要素のはみ出し防止 */
+    }
+
+    /* Gridの子 .panel 全体にも縮小許可を与えると安定します（任意だが推奨） */
+    .app > .panel{
+      min-height: 0;
+    }
+
     /* キャンバスを囲う枠：中央寄せ＆角丸＆破線枠 */
     .canvas-wrap{
       position:relative;
       background:#a1a1a1;
       border:1px dashed #233456;
       border-radius:16px;
-      height:100%;
       display:flex;
       align-items:center;    /* 縦方向に中央寄せ */
       justify-content:center;/* 横方向に中央寄せ */
@@ -210,6 +222,12 @@
       color:var(--muted);
     }
 
+    /* 既存の canvas { ... } はそのままでOK。追加で id 指定を上書き */
+    #c{
+      transform: scale(var(--preview-scale));
+      transform-origin: center center; /* 中央基準で縮小（左上基準にしたければ top left） */
+    }
+
     @font-face{
     font-family:'Rounded Mgen+ 1c';
     src:url('./fonts/rounded-mgenplus-1c-black.ttf') format('truetype');
@@ -223,7 +241,7 @@
 
   <!-- 左カラム：コントロール群 -->
   <aside class="panel" aria-label="controls panel"> <!-- 視覚的にはカード、スクリーンリーダーには「コントロールパネル」と伝える -->
-    <h2>設定 / Controls</h2>
+    <h1>パネルジェネレーター</h1>
 
     <!-- 出力サイズ（キャンバス論理サイズ）設定行 -->
     <div class="row"> <!-- 左にラベル、右に入力UIの2列グリッド -->
@@ -231,11 +249,54 @@
       <div class="stack"><span class="badge">1141 × 1077 px</span></div>
     </div>
 
-    <!-- 背景画像の読み込み -->
+      <!-- テキスト + 敬称プルダウン -->
+      <div class="row">
+        <h2 for="baseText">登録名</h2>
+        <input id="baseText" type="text" placeholder="ここに文字を入力" value="サンプル" />
+      </div>
+
+      <div class="row">
+        <h2 for="suffixSelect">敬称</h2>
+        <select id="suffixSelect">
+          <option value="ママ" selected>ママ</option>
+          <option value="パパ">パパ</option>
+          <option value="パパ/ママ">パパ/ママ</option>
+        </select>
+      </div>
+
+
+    <!-- VRChatID -->
     <div class="row">
-      <label>画像（背景）</label>
+      <h2 for="id_text">VRChatID</h2>
+      <input id="id_text" type="text" placeholder="ここに文字を入力" value="sample" />
+    </div>
+
+    <!-- ▼ここを追加（最初は非表示） -->
+    <div class="row" id="pairRow" style="display:none">
+      <h2>使用する画像の枚数</h2>
+      <div class="seg" id="pairSeg" role="group" aria-label="枚数選択">
+        <button id="pair1" aria-pressed="true">1枚</button>
+        <button id="pair2" aria-pressed="false">2枚</button>
+      </div>
+    </div>
+
+    <!-- 背景画像の読み込み -->
+    <div class="row" id="bgRow1">
+      <h2>画像</h2>
       <!-- 画像だけ選べる accept="image/*"。JSの #imgInput の change で読み込む -->
       <input id="imgInput" type="file" accept="image/*" />
+    </div>
+
+    <!-- 背景画像の読み込み（2枚用：最初は非表示） -->
+    <div class="row" id="bgRow2" style="display:none">
+      <h2>パパ用<br>画像</h2>
+      <div class="stack" style="width:100%">
+        <input id="imgInputA" type="file" accept="image/*" />
+      </div>
+      <h2>ママ用<br>画像</h2>
+      <div class="stack" style="width:100%">
+        <input id="imgInputB" type="file" accept="image/*" />
+      </div>
     </div>
 
     <!-- 画像/テキストの操作切り替え＋便利操作 -->
@@ -266,29 +327,6 @@
       <button class="btn" id="nudgeDown"  title="下に微調整">↓</button>
     </div>
 
-      <!-- テキスト + 敬称プルダウン -->
-      <div class="row">
-        <label for="baseText">テキスト（敬称は自動付与）</label>
-        <input id="baseText" type="text" placeholder="ここに文字を入力" value="サンプル" />
-      </div>
-
-      <div class="row">
-        <label for="suffixSelect">敬称</label>
-        <select id="suffixSelect">
-          <option value="ママ" selected>ママ</option>
-          <option value="パパ">パパ</option>
-          <option value="パパ/ママ">パパ/ママ</option>
-        </select>
-      </div>
-
-
-    <!-- VRChatID -->
-    <div class="row">
-      <label for="id_text">VRChatID</label>
-      <input id="id_text" type="text" placeholder="ここに文字を入力" value="sample" />
-    </div>
-
-
     <!-- ガイド線の表示トグル＋現在のマウス座標表示 -->
     <div class="row">
       <label>ガイド</label>
@@ -305,14 +343,20 @@
     <!-- 出力 -->
     <div class="stack">
       <!-- キャンバスの画像を PNG でダウンロード（toDataURL） -->
-      <button id="downloadPNG" class="btn">PNGで保存</button>
+      <button id="downloadPNG" class="btn">画像の保存</button>
     </div>
 
     <!-- 操作のヒント（ドラッグ・ズーム・キーボード操作など） -->
     <div class="footer">
       ヒント: キャンバス上をドラッグで <strong>移動</strong> / ホイールで <strong>ズーム</strong>（画像モード時）。<br/>
       方向キーで微調整。モバイルはピンチで拡大縮小。
+      <br><br>
+      本システムでは表示フォントに「Mgen+」(http://jikasei.me/font/mgenplus/) を使用しています。
+      Licensed under SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+      © 2015 自家製フォント工房, © 2014, 2015 Adobe Systems Incorporated, © 2015 M+
+      FONTS PROJECT
     </div>
+
   </aside>
 
   <!-- 右カラム：プレビュー領域 -->
@@ -345,6 +389,8 @@
     imgTex:null,       // 予備（未使用）※将来の拡張用
     scale:1,           // 画像の拡大率
     x:0, y:0,          // 画像の左上表示位置（canvas 座標）
+    imgA: null,
+    imgB: null,
 
     // ---- フレーム画像（上に重ねる PNG など）----
     frame:null,        // Image オブジェクト（読み込み後に入る）
@@ -359,7 +405,7 @@
     fontSize:127,
     color:'#ffffff',         // 文字色
     strokeColor:'#ffffff',   // 縁取り色
-    strokeWidth:2,           // 縁取り太さ（0なら縁なし）
+    strokeWidth:1,           // 縁取り太さ（0なら縁なし）
     textAlign:'center',      // left / center / right
     textX:540, textY:100,    // テキストの描画位置（基準は textBaseline='top'）
 
@@ -375,8 +421,64 @@
 
     // マウス・キー操作の対象（画像を動かすか、文字を動かすか）
     mode:'image', // 'image' or 'text'
-    loadedFonts:new Set()
+    loadedFonts:new Set(),
+    pairCount: 1,                 // ←追加：ボタンの選択状態（1 or 2）
+
+    // A/B それぞれの位置と拡大率＋アクティブ側
+    activeSide: 'A',   // 'A' or 'B'：最後に触った側
+    aScale: 1, aX: 0, aY: 0,
+    bScale: 1, bX: 0, bY: 0,
   };
+
+  const bgRow1 = document.getElementById('bgRow1');
+  const bgRow2 = document.getElementById('bgRow2');
+  const imgInputA = document.getElementById('imgInputA');
+  const imgInputB = document.getElementById('imgInputB');
+
+  const pairRow = document.getElementById('pairRow');
+  const pair1   = document.getElementById('pair1');
+  const pair2   = document.getElementById('pair2');
+  
+  function setPair(n){
+    state.pairCount = n;
+    pair1.setAttribute('aria-pressed', n === 1);
+    pair2.setAttribute('aria-pressed', n === 2);
+    updatePairVisibility();
+    draw();
+  }
+
+  // 領域に収まる初期値を計算＆2枚分フィット
+  function fitContain(img, w, h){
+    const s = Math.min(w / img.width, h / img.height);
+    return { s, x: (w - img.width * s) / 2, y: (h - img.height * s) / 2 };
+  }
+  function fitPair(){
+    const halfW = state.cw / 2, fullH = state.ch;
+    if (state.imgA){
+      const f = fitContain(state.imgA, halfW, fullH);
+      state.aScale = f.s; state.aX = f.x; state.aY = f.y;
+    }
+    if (state.imgB){
+      const f = fitContain(state.imgB, halfW, fullH);
+      state.bScale = f.s; state.bX = f.x; state.bY = f.y;
+    }
+  }
+
+  function updatePairVisibility(){
+    const isBoth = document.getElementById('suffixSelect').value === 'パパ/ママ';
+    pairRow.style.display = isBoth ? '' : 'none';
+    // 画像アップロード欄の出し分け
+    const isTwo = isBoth && state.pairCount === 2;
+    bgRow1.style.display = isTwo ? 'none' : '';     // 1枚用
+    bgRow2.style.display = isTwo ? ''     : 'none'; // 2枚用
+    if (isBoth && state.pairCount !== 2) {
+      // 1枚に戻ったら2枚用画像は保持してもOKですが、不要ならクリア
+      // state.imgA = state.imgB = null;
+    }
+  }
+
+  pair1?.addEventListener('click', ()=> setPair(1));
+  pair2?.addEventListener('click', ()=> setPair(2));
 
   // 便利関数：id から要素取得
   const el = (id)=>document.getElementById(id);
@@ -486,9 +588,35 @@
     ctx.fillRect(0,0,state.cw,state.ch);
 
     // 2) 背景画像（拡大縮小と位置を反映して描く）
-    if(state.img){
-      const iw = state.img.width, ih = state.img.height;
-      ctx.drawImage(state.img, state.x, state.y, iw*state.scale, ih*state.scale);
+      if (state.pairCount === 2) {
+        const halfW = state.cw / 2, fullH = state.ch;
+
+        // --- 左半分：A を左だけに表示 ---
+        if (state.imgA){
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, halfW, fullH); // 左半分だけ描画可能に
+          ctx.clip();
+          const iw = state.imgA.width, ih = state.imgA.height;
+          ctx.drawImage(state.imgA, /* 左領域原点 */ 0 + state.aX, 0 + state.aY, iw * state.aScale, ih * state.aScale);
+          ctx.restore();
+        }
+
+        // --- 右半分：B を右だけに表示 ---
+        if (state.imgB){
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(halfW, 0, halfW, fullH); // 右半分だけ描画可能に
+          ctx.clip();
+          const iw = state.imgB.width, ih = state.imgB.height;
+          ctx.drawImage(state.imgB, /* 右領域原点 */ halfW + state.bX, 0 + state.bY, iw * state.bScale, ih * state.bScale);
+          ctx.restore();
+        }
+      } else {
+      if (state.img){
+        const iw = state.img.width, ih = state.img.height;
+        ctx.drawImage(state.img, state.x, state.y, iw*state.scale, ih*state.scale);
+      }
     }
 
     // 3) テキスト（縁取り→塗りの順で描くと見やすい）
@@ -547,7 +675,7 @@ if (outText && state.fontSize > 0){
   // スライダー・入力の値を state に反映 → 再描画
   el('scale').oninput       = (e)=>{ state.scale       = parseFloat(e.target.value); draw(); };
   el('baseText').oninput = (e)=>{ state.baseText = e.target.value; draw(); };
-  el('suffixSelect').onchange = (e)=>{ state.suffix = e.target.value; draw(); };
+  el('suffixSelect').onchange = (e)=>{ state.suffix = e.target.value; updatePairVisibility(); draw(); };
   el('id_text').oninput       = (e)=>{ state.id_text       = e.target.value;                 draw(); };
 
   // 対象切り替え（画像を動かす / テキストを動かす）
@@ -559,7 +687,11 @@ if (outText && state.fontSize > 0){
   el('modeImage').onclick = ()=> setMode('image');
 
   // 画像をキャンバスに収める / 位置と倍率をリセット
-  el('fitBtn').onclick = fitImage;
+  el('fitBtn').onclick = ()=>{
+    if (state.pairCount === 2) { fitPair(); draw(); }
+    else { fitImage(); }
+  };
+
   el('resetBtn').onclick = ()=>{
     state.scale=1; state.x=0; state.y=0;           // 背景画像の位置と倍率をリセット
     state.textX=state.cw/2; state.textY=100;       // テキストは上中央あたりに戻す
@@ -573,13 +705,46 @@ if (outText && state.fontSize > 0){
     draw();
   };
 
+  //２枚用のinput
+  imgInputA?.addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const imgA = await loadImage(f);
+    if (imgA.width < 571 || imgA.height < 1077) {
+      alert("画像の解像度が小さすぎます (最低571x1077が必要です)。");
+      return;
+    }
+    state.imgA = imgA;
+    const fA = fitContain(state.imgA, state.cw/2, state.ch);
+    state.aScale = fA.s; state.aX = fA.x; state.aY = fA.y;
+    state.activeSide = 'A';
+    draw();
+  });
+  imgInputB?.addEventListener('change', async (e)=>{
+    const f = e.target.files?.[0]; if(!f) return;
+    const imgB = await loadImage(f);
+    if (imgB.width < 571 || imgB.height < 1077) {
+      alert("画像の解像度が小さすぎます (最低571x1077が必要です)。");
+      return;
+    }
+    state.imgB = imgB;
+    const fB = fitContain(state.imgB, state.cw/2, state.ch);
+    state.bScale = fB.s; state.bX = fB.x; state.bY = fB.y;
+    state.activeSide = 'B';
+    draw();
+  });
+
   // --------------------------------
   // 微調整ボタン（1px 移動）
   // --------------------------------
-  function nudge(dx,dy){
-    if(state.mode==='image'){      // 画像モード：画像を動かす
-      state.x += dx; state.y += dy;
-    }else{                         // テキストモード：文字を動かす
+  function nudge(dx, dy){
+    if (state.mode === 'image'){
+      if (state.pairCount === 2){
+        if (state.activeSide === 'B'){ state.bX += dx; state.bY += dy; }
+        else                         { state.aX += dx; state.aY += dy; }
+      } else {
+        state.x += dx; state.y += dy;
+      }
+    } else {
       state.textX += dx; state.textY += dy;
     }
     draw();
@@ -610,23 +775,35 @@ if (outText && state.fontSize > 0){
 
   // ドラッグ開始：ポインタをキャプチャして座標の基準を記録
   c.addEventListener('pointerdown', (e)=>{
-    dragging=true; lastX=e.offsetX; lastY=e.offsetY;
+    const p = toCanvas(e);
+    if (state.pairCount === 2 && state.mode === 'image'){
+      state.activeSide = (p.x < state.cw / 2) ? 'A' : 'B';
+    }
+    dragging = true;
+    lastX = p.x; lastY = p.y;
     c.setPointerCapture(e.pointerId);
   });
 
   // ドラッグ中：前回との差分だけ対象（画像 or 文字）を動かす
   c.addEventListener('pointermove', (e)=>{
-    const x=e.offsetX, y=e.offsetY;
-    // ついでに右上の座標表示も更新
-    el('coords').textContent = `x${Math.round(x)} y${Math.round(y)}`;
+    const p = toCanvas(e);
+    // 表示用の座標バッジもキャンバス座標に合わせてOK（CSSでも良いが統一）
+    el('coords').textContent = `x${Math.round(p.x)} y${Math.round(p.y)}`;
 
     if(!dragging) return;
-    const dx=x-lastX, dy=y-lastY;
-    lastX=x; lastY=y;
+    const dx = p.x - lastX, dy = p.y - lastY;
+    lastX = p.x; lastY = p.y;
 
-    if(state.mode==='image'){ state.x+=dx; state.y+=dy; }
-    else{                     state.textX+=dx; state.textY+=dy; }
-
+    if (state.mode === 'image'){
+      if (state.pairCount === 2){
+        if (state.activeSide === 'B'){ state.bX += dx; state.bY += dy; }
+        else                         { state.aX += dx; state.aY += dy; }
+      } else {
+        state.x += dx; state.y += dy;
+      }
+    } else {
+      state.textX += dx; state.textY += dy;
+    }
     draw();
   });
 
@@ -638,33 +815,68 @@ if (outText && state.fontSize > 0){
 
   // ホイールでズーム（画像モード時のみ）
   c.addEventListener('wheel', (e)=>{
-    if(state.mode!=='image') return; // テキストモードではズーム無効
+    if (state.mode !== 'image') return;
     e.preventDefault();
 
-    // スクロール方向で倍率を少しずつ変更
-    const zoomFactor = 1 + (e.deltaY>0 ? -0.05 : 0.05);
-    const prevScale  = state.scale;
-    const newScale   = Math.min(4, Math.max(0.1, prevScale * zoomFactor)); // 0.1〜4 の範囲に制限
+    const zoomFactor = 1 + (e.deltaY > 0 ? -0.05 : 0.05);
 
-    // ---- ズームの“中心”をマウス位置に寄せる工夫 ----
-    // 1) クライアント座標→キャンバス内座標
-    const rect = c.getBoundingClientRect();
-    const cx = (e.clientX - rect.left);
-    const cy = (e.clientY - rect.top);
+    if (state.pairCount === 2){
+      const p = toCanvas(e);
+      const halfW = state.cw / 2;
+      const isA = (p.x < halfW);
+      state.activeSide = isA ? 'A' : 'B';
 
-    // 2) 現在の画像左上から見たマウス点のオフセットを取得
-    const ox = cx - state.x;
-    const oy = cy - state.y;
+      // ズーム中心をマウス位置に寄せる（領域相対座標で計算）
+      const regionX = isA ? 0 : halfW;
+      const cx = p.x - regionX;
+      const cy = p.y; // regionY は 0
 
-    // 3) 倍率比から、ズーム後も同じ“見かけの点”がマウス下に来るように x,y を補正
-    const ratio = newScale/prevScale;
-    state.x = cx - ox*ratio;
-    state.y = cy - oy*ratio;
+      if (isA && state.imgA){
+        const prev = state.aScale;
+        const next = Math.min(4, Math.max(0.1, prev * zoomFactor));
+        const ox = cx - state.aX;
+        const oy = cy - state.aY;
+        const r = next / prev;
+        state.aX = cx - ox * r;
+        state.aY = cy - oy * r;
+        state.aScale = next;
+      } else if (!isA && state.imgB){
+        const prev = state.bScale;
+        const next = Math.min(4, Math.max(0.1, prev * zoomFactor));
+        const ox = cx - state.bX;
+        const oy = cy - state.bY;
+        const r = next / prev;
+        state.bX = cx - ox * r;
+        state.bY = cy - oy * r;
+        state.bScale = next;
+      }
+      draw();
+      return; // 1枚モードの処理へは行かない
+    }else{
+      // スクロール方向で倍率を少しずつ変更
+      const prevScale  = state.scale;
+      const newScale   = Math.min(4, Math.max(0.1, prevScale * zoomFactor)); // 0.1〜4 の範囲に制限
 
-    state.scale = newScale;
-    el('scale').value = state.scale.toFixed(2); // UI 同期
-    draw();
-  }, {passive:false}); // passive:false にして preventDefault を有効化
+      // ---- ズームの“中心”をマウス位置に寄せる工夫 ----
+      // 1) クライアント座標→キャンバス内座標
+      const rect = c.getBoundingClientRect();
+      const cx = (e.clientX - rect.left);
+      const cy = (e.clientY - rect.top);
+
+      // 2) 現在の画像左上から見たマウス点のオフセットを取得
+      const ox = cx - state.x;
+      const oy = cy - state.y;
+
+      // 3) 倍率比から、ズーム後も同じ“見かけの点”がマウス下に来るように x,y を補正
+      const ratio = newScale/prevScale;
+      state.x = cx - ox*ratio;
+      state.y = cy - oy*ratio;
+
+      state.scale = newScale;
+      el('scale').value = state.scale.toFixed(2); // UI 同期
+      draw();
+    }
+  }, {passive:false});
 
   // --------------------------------
   // ドラッグ＆ドロップで画像を読み込む
@@ -681,15 +893,46 @@ if (outText && state.fontSize > 0){
 
   // ファイルが落とされたら、モードに応じて背景 or フレームに読み込む
   dropZone.addEventListener('drop', async (e)=>{
-    const files = Array.from(e.dataTransfer.files || []);
+    const files = Array.from(e.dataTransfer.files || []).filter(f=>f.type.startsWith('image/'));
+    if (state.pairCount === 2) {
+      const halfW = state.cw / 2;
+      for (const f of files){
+        const img = await loadImage(f);
+        if (!state.imgA) {
+          state.imgA = img;
+          const fA = fitContain(img, halfW, state.ch);
+          state.aScale = fA.s; state.aX = fA.x; state.aY = fA.y;
+          state.activeSide = 'A';
+        } else if (!state.imgB) {
+          state.imgB = img;
+          const fB = fitContain(img, halfW, state.ch);
+          state.bScale = fB.s; state.bX = fB.x; state.bY = fB.y;
+          state.activeSide = 'B';
+        } else {
+          // 両方埋まっていたらアクティブ側を置き換える例（好みで）
+          if (state.activeSide === 'B') {
+            state.imgB = img;
+            const fB = fitContain(img, halfW, state.ch);
+            state.bScale = fB.s; state.bX = fB.x; state.bY = fB.y;
+          } else {
+            state.imgA = img;
+            const fA = fitContain(img, halfW, state.ch);
+            state.aScale = fA.s; state.aX = fA.x; state.aY = fA.y;
+            state.activeSide = 'A';
+          }
+        }
+      }
+      draw();
+      return;
+
+    }
+
+    // ←ここから下は従来の1枚モードの処理
     for(const f of files){
-      if(!f.type.startsWith('image/')) continue;
       if(state.mode==='image' || !state.img){
-        // 画像モード、またはまだ背景が無いときは背景に
         state.img = await loadImage(f);
         fitImage();
       }else{
-        // それ以外はフレームとして扱う
         state.frame = await loadImage(f);
         draw();
       }
@@ -709,6 +952,15 @@ if (outText && state.fontSize > 0){
     }).join(', ');
     }
 
+    const suffixSel = el('suffixSelect');
+    function handleSuffix(e){
+      state.suffix = e.target.value;
+      updatePairVisibility();
+      draw();
+    }
+    // 即時反映のため両方
+    suffixSel.addEventListener('input', handleSuffix);
+    suffixSel.addEventListener('change', handleSuffix);
 
     // 文字列が maxWidth を超えるなら defaultPx を下げて収める（上には拡大しない）
     function fitFontSizeToWidth(text, fontFamily, defaultPx, maxWidth, minPx = 8){
@@ -733,6 +985,27 @@ if (outText && state.fontSize > 0){
       }
       ctx.restore();
       return Math.max(minPx, lo - 1);
+    }
+
+
+    // 追加：表示サイズ(CSS px) → キャンバス座標(キャンバス内部px)に変換
+    function toCanvas(e){
+      const rect = c.getBoundingClientRect();   // 縮小後の見かけサイズ
+      const scaleX = c.width  / rect.width;     // 属性width ÷ 表示width
+      const scaleY = c.height / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top)  * scaleY
+      };
+    }
+  
+    //（領域にcontainフィットで描画）をどこかユーティリティ付近に追加
+    function drawFit(img, x, y, w, h){
+      const iw = img.width, ih = img.height;
+      const s = Math.min(w/iw, h/ih);
+      const dx = x + (w -                                 iw*s)/2;
+      const dy = y + (h - ih*s)/2;
+      ctx.drawImage(img, dx, dy, iw*s, ih*s);
     }
 
   // --------------------------------
@@ -768,6 +1041,10 @@ if (outText && state.fontSize > 0){
   // --------------------------------
   // 初期化：キャンバスを作って一度描く
   // --------------------------------
+  // 初期化：DOMから初期値を同期してから可視状態更新＆描画
+  state.baseText = el('baseText').value;
+  state.suffix   = el('suffixSelect').value;
+  updatePairVisibility();
   draw();
   document.fonts.ready.then(draw);
 </script>
