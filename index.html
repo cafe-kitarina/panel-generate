@@ -1183,7 +1183,22 @@ if (outText && state.fontSize > 0){
     // 擬似リンクを作って自動クリック→保存
     const a = document.createElement('a');
     a.href = url;
-    a.download = `composition.${type}`;
+    
+    // ファイル名生成
+    let base = (state.baseText || "").trim();
+    let suffix = (state.suffix || "").trim();
+
+    let filename = base + suffix;
+
+    // 空だった場合の保険
+    if (!filename) {
+      filename = "composition";
+    }
+
+    // Windows/Macで使えない文字を除去
+    filename = filename.replace(/[\\\/:*?"<>|]/g, '');
+
+    a.download = `${filename}.${type}`;
     a.click();
 
     // 元のグリッド設定に戻す
